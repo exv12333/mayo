@@ -1,82 +1,159 @@
-local key = "E" --key to intiate the flashback. see https://create.roblox.com/docs/reference/engine/enums/KeyCode for an exhaustive list
-local flashbacklength = 60 --how long the flashback should be stored in approx seconds
-local flashbackspeed = 1 --how many frames to skip during flashback (set to 0 to disable)
+--[[Invisibility Toggle
 
-local name = game:GetService("RbxAnalyticsService"):GetSessionId() --unique id that games cannot access but does not change on subsequent executions (used for the name of the binded function)
-local frames,uis,LP,RS = {},game:GetService("UserInputService"),game:GetService("Players").LocalPlayer,game:GetService("RunService") --set some vars
+You can find the orginal concept here: https://v3rmillion.net/showthread.php?tid=544634
 
-pcall(RS.UnbindFromRenderStep,RS,name) --unbind the function if previously binded
+This method clones the character locally, teleports the real character to a safe location, then sets the character to the clone.
+Basically, your real character is in the sky while you are on the ground.
 
-local function getchar()
-   return LP.Character or LP.CharacterAdded:Wait()
+
+Because of the way this works, games with a decent anti-cheat will fuck this up.
+If you turn it off, you have to go to a safe place before going invisible.
+
+Written by: BitingTheDust ; https://v3rmillion.net/member.php?action=profile&uid=1628149
+]]
+--Settings:
+local ScriptStarted = false
+local Keybind = "E" --Set to whatever you want, has to be the name of a KeyCode Enum.
+local Transparency = true --Will make you slightly transparent when you are invisible. No reason to disable.
+local NoClip = false --Will make your fake character no clip.
+
+local Player = game:GetService("Players").LocalPlayer
+local RealCharacter = Player.Character or Player.CharacterAdded:Wait()
+
+local IsInvisible = false
+
+RealCharacter.Archivable = true
+local FakeCharacter = RealCharacter:Clone()
+local Part
+Part = Instance.new("Part", workspace)
+Part.Anchored = true
+Part.Size = Vector3.new(200, 1, 200)
+Part.CFrame = CFrame.new(0, -500, 0) --Set this to whatever you want, just far away from the map.
+Part.CanCollide = true
+FakeCharacter.Parent = workspace
+FakeCharacter.HumanoidRootPart.CFrame = Part.CFrame * CFrame.new(0, 5, 0)
+
+for i, v in pairs(RealCharacter:GetChildren()) do
+  if v:IsA("LocalScript") then
+      local clone = v:Clone()
+      clone.Disabled = true
+      clone.Parent = FakeCharacter
+  end
 end
-
-function gethrp(c) --gethrp ripped from my env script and stripped of arguments
-return c:FindFirstChild("HumanoidRootPart") or c.RootPart or c.PrimaryPart or c:FindFirstChild("Torso") or c:FindFirstChild("UpperTorso") or c:FindFirstChildWhichIsA("BasePart")
+if Transparency then
+  for i, v in pairs(FakeCharacter:GetDescendants()) do
+      if v:IsA("BasePart") then
+          v.Transparency = 0.7
+      end
+  end
 end
+local CanInvis = true
+function RealCharacterDied()
+  CanInvis = false
+  RealCharacter:Destroy()
+  RealCharacter = Player.Character
+  CanInvis = true
+  isinvisible = false
+  FakeCharacter:Destroy()
+  workspace.CurrentCamera.CameraSubject = RealCharacter.Humanoid
 
-local flashback = {lastinput=false,canrevert=true}
+  RealCharacter.Archivable = true
+  FakeCharacter = RealCharacter:Clone()
+  Part:Destroy()
+  Part = Instance.new("Part", workspace)
+  Part.Anchored = true
+  Part.Size = Vector3.new(200, 1, 200)
+  Part.CFrame = CFrame.new(9999, 9999, 9999) --Set this to whatever you want, just far away from the map.
+  Part.CanCollide = true
+  FakeCharacter.Parent = workspace
+  FakeCharacter.HumanoidRootPart.CFrame = Part.CFrame * CFrame.new(0, 5, 0)
 
-function flashback:Advance(char,hrp,hum,allowinput)
-   
-   if #frames>flashbacklength*60 then --make sure we don't have too much history
-       table.remove(frames,1)
-   end
-   
-   if allowinput and not self.canrevert then
-       self.canrevert = true
-   end
-   
-   if self.lastinput then --make sure platformstand goes back to normal
-       hum.PlatformStand = false
-       self.lastinput = false
-   end
-   
-   table.insert(frames,{
-       hrp.CFrame,
-       hrp.Velocity,
-       hum:GetState(),
-       hum.PlatformStand,
-       char:FindFirstChildOfClass("Tool")
-   })
+  for i, v in pairs(RealCharacter:GetChildren()) do
+      if v:IsA("LocalScript") then
+          local clone = v:Clone()
+          clone.Disabled = true
+          clone.Parent = FakeCharacter
+      end
+  end
+  if Transparency then
+      for i, v in pairs(FakeCharacter:GetDescendants()) do
+          if v:IsA("BasePart") then
+              v.Transparency = 0.7
+          end
+      end
+  end
+ RealCharacter.Humanoid.Died:Connect(function()
+ RealCharacter:Destroy()
+ FakeCharacter:Destroy()
+ end)
+ Player.CharacterAppearanceLoaded:Connect(RealCharacterDied)
 end
-
-function flashback:Revert(char,hrp,hum)
-   local num = #frames
-   if num==0 or not self.canrevert then --add to history and return if no history is present
-       self.canrevert = false
-       self:Advance(char,hrp,hum)
-       return
-   end
-   for i=1,flashbackspeed do --skip frames (if enabled)
-       table.remove(frames,num)
-       num=num-1
-   end
-   self.lastinput = true
-   local lastframe = frames[num]
-   table.remove(frames,num)
-   hrp.CFrame = lastframe[1]
-   hrp.Velocity = -lastframe[2]
-   hum:ChangeState(lastframe[3])
-   hum.PlatformStand = lastframe[4] --platformstand to make flying look normal again
-   local currenttool = char:FindFirstChildOfClass("Tool")
-   if lastframe[5] then --equip/unequip tools
-       if not currenttool then
-           hum:EquipTool(lastframe[5])
+RealCharacter.Humanoid.Died:Connect(function()
+ RealCharacter:Destroy()
+ FakeCharacter:Destroy()
+ end)
+Player.CharacterAppearanceLoaded:Connect(RealCharacterDied)
+local PseudoAnchor
+game:GetService "RunService".RenderStepped:Connect(
+  function()
+      if PseudoAnchor ~= nil then
+          PseudoAnchor.CFrame = Part.CFrame * CFrame.new(0, 5, 0)
+      end
+       if NoClip then
+      FakeCharacter.Humanoid:ChangeState(11)
        end
-   else
-       hum:UnequipTools()
-   end
+  end
+)
+
+PseudoAnchor = FakeCharacter.HumanoidRootPart
+local function Invisible()
+  if IsInvisible == false then
+      local StoredCF = RealCharacter.HumanoidRootPart.CFrame
+      RealCharacter.HumanoidRootPart.CFrame = FakeCharacter.HumanoidRootPart.CFrame
+      FakeCharacter.HumanoidRootPart.CFrame = StoredCF
+      RealCharacter.Humanoid:UnequipTools()
+      Player.Character = FakeCharacter
+      workspace.CurrentCamera.CameraSubject = FakeCharacter.Humanoid
+      PseudoAnchor = RealCharacter.HumanoidRootPart
+      for i, v in pairs(FakeCharacter:GetChildren()) do
+          if v:IsA("LocalScript") then
+              v.Disabled = false
+          end
+      end
+
+      IsInvisible = true
+  else
+      local StoredCF = FakeCharacter.HumanoidRootPart.CFrame
+      FakeCharacter.HumanoidRootPart.CFrame = RealCharacter.HumanoidRootPart.CFrame
+     
+      RealCharacter.HumanoidRootPart.CFrame = StoredCF
+     
+      FakeCharacter.Humanoid:UnequipTools()
+      Player.Character = RealCharacter
+      workspace.CurrentCamera.CameraSubject = RealCharacter.Humanoid
+      PseudoAnchor = FakeCharacter.HumanoidRootPart
+      for i, v in pairs(FakeCharacter:GetChildren()) do
+          if v:IsA("LocalScript") then
+              v.Disabled = true
+          end
+      end
+      IsInvisible = false
+  end
 end
 
-local function step() --function that runs every frame
-   local char = getchar()
-   local hrp = gethrp(char)
-   local hum = char:FindFirstChildWhichIsA("Humanoid")
-   if uis:IsKeyDown(Enum.KeyCode[key]) then --begin flashback
-       flashback:Revert(char,hrp,hum)
-   else
-       flashback:Advance(char,hrp,hum,true)
-   end
-end
-RS:BindToRenderStep(name,1,step) --finally, bind our function
+game:GetService("UserInputService").InputBegan:Connect(
+  function(key, gamep)
+      if gamep then
+          return
+      end
+      if key.KeyCode.Name:lower() == Keybind:lower() and CanInvis and RealCharacter and FakeCharacter then
+          if RealCharacter:FindFirstChild("HumanoidRootPart") and FakeCharacter:FindFirstChild("HumanoidRootPart") then
+              Invisible()
+          end
+      end
+  end
+)
+local Sound = Instance.new("Sound",game:GetService("SoundService"))
+Sound.SoundId = "rbxassetid://232127604"
+Sound:Play()
+game:GetService("StarterGui"):SetCore("SendNotification",{["Title"] = "Invisible Toggle Loaded",["Text"] = "Press "..Keybind.." to become change visibility.",["Duration"] = 20,["Button1"] = "Okay."})
